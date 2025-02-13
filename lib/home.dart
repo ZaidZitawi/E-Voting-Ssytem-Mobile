@@ -1,28 +1,42 @@
+// home.dart
 import 'package:flutter/material.dart';
-import 'package:e_voting_system/CalendarPage.dart';
-import 'package:e_voting_system/ClubElectionsPage.dart';
-import 'package:e_voting_system/CustomBottomNavigationBar.dart';
-import 'package:e_voting_system/CustomDrawer.dart';
-import 'package:e_voting_system/ElectionDetailPage.dart';
-import 'package:e_voting_system/NotificationsPage.dart';
-import 'package:e_voting_system/ProfileUserPage.dart';
-import 'package:e_voting_system/CandidatePostsPage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:ui';
+// Example placeholders for your other pages
+import 'CalendarPage.dart';
+import 'ClubElectionsPage.dart';
+import 'NotificationsPage.dart';
+import 'ProfileUserPage.dart';
+import 'CandidatePostsPage.dart';
+import 'CustomBottomNavigationBar.dart';
+import 'CustomDrawer.dart';
+// Suppose you have an ElectionDetailPage to navigate to
+import 'ElectionDetailPage.dart';
 
+// Replace with your actual endpoints
+const BASE_URL = "http://localhost:8080";
+
+// ------------------------------------------
+// HomePage with AppBar, Drawer, BottomNav
+// ------------------------------------------
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({Key? key}) : super(key: key);
 
   @override
   _HomePageState createState() => _HomePageState();
 }
 
+// The main scaffold with tab navigation
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
   static final List<Widget> _pages = <Widget>[
-    const HomeContent(),
-    const CalendarPage(),
-    const NotificationsPage(),
-    const ProfilePage(),
+    HomeContent(),         // 0: main dashboard content
+    CalendarPage(),        // 1
+    NotificationsPage(),   // 2
+    ProfilePage(),         // 3
   ];
 
   void _onItemTapped(int index) {
@@ -51,14 +65,14 @@ class _HomePageState extends State<HomePage> {
             );
           },
         ),
-        actions: [
+        actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.post_add_sharp),
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const CandidatePostsPage(),
+                  builder: (context) => CandidatePostsPage(),
                 ),
               );
             },
@@ -66,7 +80,6 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       drawer: CustomDrawer(
-        
         onItemTapped: _onItemTapped,
         onNavigateToFacebook: () {},
       ),
@@ -79,351 +92,700 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+// ---------------------------------------------------
+// HomeContent: A "dashboard" that merges React ideas
+// ---------------------------------------------------
 class HomeContent extends StatefulWidget {
-  const HomeContent({super.key});
+  HomeContent({Key? key}) : super(key: key);
 
   @override
   _HomeContentState createState() => _HomeContentState();
 }
 
 class _HomeContentState extends State<HomeContent> {
-  final List<Map<String, dynamic>> _elections = [
-    {
-      'title': 'Student Council Elections',
-      'icon': Icons.group,
-      'color': const Color(0xFF347928), // Green
-    },
-    {
-      'title': 'Club Elections',
-      'icon': Icons.sports,
-      'color': const Color(0xFF5E82FF), // Blue
-    },
-    {
-      'title': 'College Representative Elections',
-      'icon': Icons.school,
-      'color': const Color(0xFFFCCD2A), // Yellow
-    },
-    {
-      'title': 'Teaching Union Elections',
-      'icon': Icons.how_to_vote,
-      'color': const Color(0xFFE63946), // Red
-    },
-  ];
+  // For "featured" slider
+  List<dynamic> _featuredElections = [];
+  bool _isLoadingFeatured = false;
+  String? _featuredError;
 
-  List<Map<String, dynamic>> _filteredElections = [];
-  String _searchQuery = '';
+  // For filtering / listing
+  TextEditingController _searchController = TextEditingController();
+  List<dynamic> _allElections = [];
+  List<dynamic> _filteredElections = [];
+  bool _isLoadingAll = false;
+  String? _listError;
+
+  // Filters
+  bool _upcoming = false;
+  bool _active = false;
+  int? _faculty;    // null means "All"
+  int? _department; // null means "All"
+  int? _type;       // null means "All"
+
+  List<Map<String, dynamic>> _faculties = [];
+  List<Map<String, dynamic>> _departments = [];
+  bool _isLoadingFaculties = false;
+  bool _isLoadingDepartments = false;
+  String? _errorFaculties;
+  String? _errorDepartments;
 
   @override
   void initState() {
     super.initState();
-    _filteredElections = _elections;
+    _fetchFeaturedElections();
+    _fetchAllElections();
   }
 
-  void _filterElections(String query) {
+  // ---------------------------
+  // 1) Fetch FEATURED ELECTIONS
+  // ---------------------------
+  Future<void> _fetchFeaturedElections() async {
     setState(() {
-      _searchQuery = query;
-      if (query.isEmpty) {
-        _filteredElections = _elections;
+      _isLoadingFeatured = true;
+      _featuredError = null;
+    });
+
+    try {
+      final String? token = await _getToken();
+      if (token == null) throw Exception("No auth token found.");
+
+      final response = await http.get(
+        Uri.parse("$BASE_URL/elections/featured"),
+        headers: {"Authorization": "Bearer $token"},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _featuredElections = data is List ? data : [];
+        });
       } else {
-        _filteredElections = _elections
-            .where((election) => election['title']
-                .toLowerCase()
-                .contains(query.toLowerCase()))
-            .toList();
+        setState(() {
+          _featuredError = "Error: ${response.body}";
+        });
       }
-    });
+    } catch (e) {
+      setState(() {
+        _featuredError = "$e";
+      });
+    } finally {
+      setState(() {
+        _isLoadingFeatured = false;
+      });
+    }
   }
 
-  void _applyFilter(String filterType) {
+  // -----------------------------------------
+  // 2) Fetch ALL ELECTIONS, store in _allElections
+  // -----------------------------------------
+  Future<void> _fetchAllElections() async {
     setState(() {
-      switch (filterType) {
-        case 'All':
-          _filteredElections = _elections;
-          break;
-        case 'Department':
-          _filteredElections = _elections
-              .where((e) => e['title'].contains('Department'))
-              .toList();
-          break;
-        case 'Faculty':
-          _filteredElections =
-              _elections.where((e) => e['title'].contains('Faculty')).toList();
-          break;
-        case 'Upcoming':
-          _filteredElections =
-              _elections.where((e) => e['title'].contains('Upcoming')).toList();
-          break;
-        case 'Active':
-          _filteredElections =
-              _elections.where((e) => e['title'].contains('Active')).toList();
-          break;
-        case 'Type':
-          _filteredElections =
-              _elections.where((e) => e['title'].contains('Type')).toList();
-          break;
-      }
+      _isLoadingAll = true;
+      _listError = null;
     });
+
+    try {
+      final String? token = await _getToken();
+      if (token == null) throw Exception("No auth token found.");
+
+      // This might be the "filter" endpoint from your React code
+      // We'll pass default query params for "All"
+      final response = await http.get(
+        Uri.parse("$BASE_URL/elections/filter?page=0&size=50"),
+        headers: {"Authorization": "Bearer $token"},
+      );
+
+      if (response.statusCode == 200) {
+        final parsed = jsonDecode(response.body);
+        final content = parsed["content"];
+        setState(() {
+          _allElections = content is List ? content : [];
+        });
+        _applyFilters(); // Filter them after fetching
+      } else {
+        setState(() {
+          _listError = "Error: ${response.body}";
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _listError = "$e";
+      });
+    } finally {
+      setState(() {
+        _isLoadingAll = false;
+      });
+    }
   }
 
- @override
-Widget build(BuildContext context) {
-  return Scaffold(
-    body: CustomScrollView(
-      slivers: [
-        // ثابتة: Search Box + Filter Buttons
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(12.0), // حواف أصغر حول المحتوى
-            child: Column(
-              children: [
-                // Search box
-                TextField(
-                  onChanged: _filterElections,
-                  decoration: InputDecoration(
-                    hintText: 'Search elections...',
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    filled: true,
-                    fillColor: const Color(0xFFF0F4F8),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12), // حواف صغيرة داخل مربع النص
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24), // حواف دائرية أصغر
-                      borderSide: BorderSide.none,
+  Future<void> _fetchFaculties() async {
+  setState(() {
+    _isLoadingFaculties = true;
+    _errorFaculties = null;
+  });
+
+  final String? token = await _getToken();
+  if (token == null) {
+    setState(() {
+      _errorFaculties = "No authentication token found. Please log in.";
+      _isLoadingFaculties = false;
+    });
+    return;
+  }
+
+  final Uri url = Uri.parse("http://localhost:8080/faculty-and-department/faculties");
+
+  try {
+    final response = await http.get(
+      url,
+      headers: {"Authorization": "Bearer $token"},
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      // Convert each faculty item to { "id": ..., "name": ... }
+      setState(() {
+        _faculties = data.map((f) {
+          return {
+            "id": f["facultyId"],
+            "name": f["facultyName"],
+          };
+        }).toList();
+      });
+    } else {
+      setState(() {
+        _errorFaculties = "Error: ${response.body}";
+      });
+    }
+  } catch (e) {
+    setState(() {
+      _errorFaculties = "Exception: $e";
+    });
+  } finally {
+    setState(() {
+      _isLoadingFaculties = false;
+    });
+  }
+}
+
+
+  Future<void> _fetchDepartments(int facultyId) async {
+  setState(() {
+    _isLoadingDepartments = true;
+    _errorDepartments = null;
+  });
+
+  final String? token = await _getToken();
+  if (token == null) {
+    setState(() {
+      _errorDepartments = "No authentication token found. Please log in.";
+      _isLoadingDepartments = false;
+    });
+    return;
+  }
+
+  final Uri url = Uri.parse("http://localhost:8080/faculty-and-department/faculties/$facultyId/departments");
+
+  try {
+    final response = await http.get(
+      url,
+      headers: {"Authorization": "Bearer $token"},
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      // Convert each department item to { "id": ..., "name": ... }
+      setState(() {
+        _departments = data.map((d) {
+          return {
+            "id": d["departmentId"],
+            "name": d["departmentName"],
+          };
+        }).toList();
+      });
+    } else {
+      setState(() {
+        _errorDepartments = "Error: ${response.body}";
+      });
+    }
+  } catch (e) {
+    setState(() {
+      _errorDepartments = "Exception: $e";
+    });
+  } finally {
+    setState(() {
+      _isLoadingDepartments = false;
+    });
+  }
+}
+
+
+  // -------------------------------------
+  // HELPER: Retrieve token from local storage
+  // -------------------------------------
+  Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString("authToken");
+  }
+
+  // --------------------
+  // SEARCH + FILTER LOGIC
+  // --------------------
+  void _onSearchChanged(String query) {
+    // Called when user types in the search box
+    _applyFilters();
+  }
+
+  void _applyFilters() {
+  final query = _searchController.text.trim().toLowerCase();
+
+  List<dynamic> filtered = _allElections.where((e) {
+    // 1) Text search
+    final title = (e["title"] ?? "").toString().toLowerCase();
+    final matchesSearch = query.isEmpty || title.contains(query);
+
+    // 2) Calculate if election is upcoming by checking startDatetime > DateTime.now()
+    bool isUpcomingLocal = false;
+    if (e["startDatetime"] != null) {
+      try {
+        final DateTime dt = DateTime.parse(e["startDatetime"]);
+        if (dt.isAfter(DateTime.now())) {
+          isUpcomingLocal = true;
+        }
+      } catch (_) {
+        // If parsing fails, treat as not upcoming
+        isUpcomingLocal = false;
+      }
+    }
+
+    // 3) Active check from server (if "isActive" is a boolean in JSON)
+    final bool isActive = e["isActive"] == true;
+
+    // 4) Combine user’s filter toggles with the local checks
+    final bool matchesUpcoming = !_upcoming || isUpcomingLocal;
+    final bool matchesActive = !_active || isActive;
+
+    // 5) Faculty / department / type checks
+    final facultyId = e["faculty"] != null ? e["faculty"]["facultyId"] : null;
+    final departmentId = e["department"] != null ? e["department"]["departmentId"] : null;
+    final electionType = e["type"]; // int or null
+
+    final bool matchesFaculty = _faculty == null || _faculty == facultyId;
+    final bool matchesDept = _department == null || _department == departmentId;
+    final bool matchesType = _type == null || _type == electionType;
+
+    // 6) Return true if all filters pass
+    return matchesSearch
+        && matchesUpcoming
+        && matchesActive
+        && matchesFaculty
+        && matchesDept
+        && matchesType;
+  }).toList();
+
+  setState(() {
+    _filteredElections = filtered;
+  });
+}
+
+
+  // Clear all filters
+  void _clearFilters() {
+    setState(() {
+      _searchController.text = "";
+      _upcoming = false;
+      _active = false;
+      _faculty = null;
+      _department = null;
+      _type = null;
+    });
+    _applyFilters();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: CustomScrollView(
+        slivers: <Widget>[
+          // Sliver for top padding
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: <Widget>[
+                  // 1) Featured Elections (like ElectionSlider)
+                  _buildFeaturedSection(),
+
+                  const SizedBox(height: 12),
+                  // 2) Search + Filter Bar
+                  _buildSearchBox(),
+                  const SizedBox(height: 12),
+                  _buildFilterButtons(),
+                ],
+              ),
+            ),
+          ),
+
+          // 3) Election Grid or List
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _buildElectionList(),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        ],
+      ),
+    );
+  }
+
+  // ------------------------------------
+  // WIDGET: Featured Elections Carousel
+  // ------------------------------------
+  Widget _buildFeaturedSection() {
+    if (_isLoadingFeatured) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_featuredError != null) {
+      return Text("Error: $_featuredError", style: const TextStyle(color: Colors.red));
+    }
+    if (_featuredElections.isEmpty) {
+      return const Text("No featured elections available at the moment.");
+    }
+    // Example horizontal ListView as a simple "carousel"
+    return SizedBox(
+      height: 180,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _featuredElections.length,
+        itemBuilder: (context, index) {
+          final election = _featuredElections[index];
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ElectionDetailsPage(
+                  electionId: election["electionId"],
+                )),
+              );
+            },
+            child: Container(
+              width: 220,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.grey)],
+              ),
+              child: Column(
+                children: <Widget>[
+                  // If there's an image
+                  election["imageUrl"] != null
+                      ? ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                          child: Image.network(
+                            "$BASE_URL/uploads/${election["imageUrl"]}",
+                            height: 100,
+                            width: 220,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Container(
+                          height: 100,
+                          color: Colors.grey.shade300,
+                          alignment: Alignment.center,
+                          child: const Text("No image"),
+                        ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(
+                      election["title"] ?? "Untitled",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ),
-                const SizedBox(height: 12), // مسافة صغيرة بين مربع البحث والأزرار
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-                // Filter Buttons
-                _buildFilterButtons(),
+  // ------------------------------------
+  // WIDGET: Search Box
+  // ------------------------------------
+  Widget _buildSearchBox() {
+    return TextField(
+      controller: _searchController,
+      onChanged: _onSearchChanged,
+      decoration: InputDecoration(
+        hintText: 'Search elections...',
+        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+        filled: true,
+        fillColor: const Color(0xFFF0F4F8),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(24),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
+  // ------------------------------------
+  // WIDGET: Filter Buttons (like React)
+  // ------------------------------------
+  Widget _buildFilterButtons() {
+    // For demonstration, we only show "All", "Upcoming", "Active"
+    // You might replace or expand with faculty/department pickers, etc.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: <Widget>[
+          _buildFilterButton("All", onPressed: _clearFilters),
+          const SizedBox(width: 8),
+          _buildFilterButton("Upcoming", onPressed: () {
+            setState(() {
+              _upcoming = true;
+              _active = false;
+              // You could also set type/faculty/department if needed
+            });
+            _applyFilters();
+          }),
+          const SizedBox(width: 8),
+          _buildFilterButton("Active", onPressed: () {
+            setState(() {
+              _upcoming = false;
+              _active = true;
+            });
+            _applyFilters();
+          }),
+          const SizedBox(width: 8),
+          // Possibly a button to pick "Faculty" or "Department" in a dialog
+          _buildFilterButton("Pick Faculty/Dept", onPressed: _showFacultyDeptDialog),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterButton(String label, {required VoidCallback onPressed}) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        backgroundColor: const Color.fromARGB(255, 133, 154, 229),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(30),
+        ),
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+    );
+  }
+
+ Future<void> _showFacultyDeptDialog() async {
+  // If faculties haven’t been fetched yet, do it:
+  if (_faculties.isEmpty) {
+    await _fetchFaculties(); // existing method in your code
+  }
+
+  // Start with the current selected faculty/department (if any)
+  String? localFaculty = _faculty != null ? _faculty.toString() : null;
+  String? localDepartment = _department != null ? _department.toString() : null;
+
+  // Show a dialog with a StatefulBuilder, so UI updates when user picks new faculty
+  await showDialog(
+    context: context,
+    builder: (BuildContext ctx) {
+      return StatefulBuilder(
+        builder: (BuildContext context, StateSetter setDialogState) {
+          return AlertDialog(
+            title: const Text("Select Faculty & Department"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 1) Faculty Dropdown
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: "Faculty"),
+                  value: localFaculty,
+                  items: _faculties.map((f) {
+                    // Each faculty item looks like { "id": 1, "name": "Engineering" }
+                    return DropdownMenuItem<String>(
+                      value: f["id"].toString(),
+                      child: Text(f["name"]),
+                    );
+                  }).toList(),
+                  onChanged: (value) async {
+                    // When user picks a new faculty:
+                    setDialogState(() {
+                      localFaculty = value;
+                      // Reset department selection
+                      localDepartment = null;
+                      _departments.clear(); // Clear current departments
+                    });
+
+                    if (value != null) {
+                      // Convert to int
+                      final facultyId = int.tryParse(value);
+                      if (facultyId != null) {
+                        // Fetch new departments for this faculty
+                        await _fetchDepartments(facultyId);
+                        // Force rebuild to show the newly fetched departments
+                        setDialogState(() {});
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // 2) Department Dropdown
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: "Department"),
+                  value: localDepartment,
+                  items: _departments.map((d) {
+                    // Each department item looks like { "id": 10, "name": "Computer Science" }
+                    return DropdownMenuItem<String>(
+                      value: d["id"].toString(),
+                      child: Text(d["name"]),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      localDepartment = value;
+                    });
+                  },
+                ),
               ],
             ),
-          ),
-        ),
-
-        // قابل للتمرير: GridView + ListView
-        SliverList(
-          delegate: SliverChildListDelegate(
-            [
-              const SizedBox(height: 12), // مسافة صغيرة بين الأقسام
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12), // حواف صغيرة للنص
-                child: Text(
-                  'Types of Elections',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  // Cancel: do nothing, just close
+                  Navigator.pop(context);
+                },
+                child: const Text("Cancel"),
               ),
-              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  // Convert local selections to int
+                  setState(() {
+                    _faculty = localFaculty != null ? int.tryParse(localFaculty!) : null;
+                    _department = localDepartment != null ? int.tryParse(localDepartment!) : null;
+                  });
 
-              // Grid of election cards
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12), // حواف صغيرة للشبكة
-                child: GridView.builder(
-                  physics: const NeverScrollableScrollPhysics(),
-                  shrinkWrap: true,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12, // مسافة صغيرة بين الأعمدة
-                    mainAxisSpacing: 12, // مسافة صغيرة بين الصفوف
-                    childAspectRatio: 4 / 3,
-                  ),
-                  itemCount: _filteredElections.length,
-                  itemBuilder: (context, index) {
-                    final election = _filteredElections[index];
-                    return _buildElectionCard(
-                      title: election['title'],
-                      icon: election['icon'],
-                      color: election['color'],
-                      onTap: () {
-                        if (election['title'] == 'Club Elections') {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ClubElectionsPage(),
-                            ),
-                          );
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ElectionDetailPage(
-                                electionTitle: election['title'],
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
+                  // Re-apply filters or refresh your list
+                  _applyFilters();
 
-              // List of ongoing elections
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12), // حواف صغيرة للنص
-                child: Text(
-                  'Ongoing Elections',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12), // حواف صغيرة للقائمة
-                child: ListView.builder(
-                  physics: const NeverScrollableScrollPhysics(),
-                  shrinkWrap: true,
-                  itemCount: _elections.length,
-                  itemBuilder: (context, index) {
-                    final election = _elections[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4), // مسافة صغيرة بين البطاقات
-                      child: ListTile(
-                        leading: Icon(
-                          election['icon'],
-                          color: election['color'],
-                        ),
-                        title: Text(
-                          election['title'],
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () {
-                          if (election['title'] == 'Club Elections') {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const ClubElectionsPage(),
-                              ),
-                            );
-                          } else {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ElectionDetailPage(
-                                  electionTitle: election['title'],
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                    );
-                  },
-                ),
+                  Navigator.pop(context);
+                },
+                child: const Text("Save"),
               ),
             ],
+          );
+        },
+      );
+    },
+  );
+}
+
+
+  // ------------------------------------
+  // WIDGET: The main election list
+  // ------------------------------------
+  Widget _buildElectionList() {
+    if (_isLoadingAll) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_listError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text("Error: $_listError", style: const TextStyle(color: Colors.red)),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: _fetchAllElections,
+            child: const Text("Retry"),
           ),
+        ],
+      );
+    }
+    if (_filteredElections.isEmpty) {
+      return const Text("No elections match your criteria.");
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const Text(
+          'All Elections',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          itemCount: _filteredElections.length,
+          itemBuilder: (context, index) {
+            final election = _filteredElections[index];
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              child: ListTile(
+                leading: const Icon(Icons.how_to_vote, color: Color(0xFF347928)),
+                title: Text(
+                  election["title"] ?? "No title",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(election["description"] ?? "No description."),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  // Navigate to detail page
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ElectionDetailsPage(
+                        electionId: election["electionId"],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
         ),
       ],
-    ),
-  );
+    );
+  }
 }
 
+// ----------------------------------------------------
+// GlassContainer: same as your original design
+// ----------------------------------------------------
+class GlassContainer extends StatelessWidget {
+  final double blur;
+  final double opacity;
+  final Widget child;
 
+  GlassContainer({
+    Key? key,
+    required this.blur,
+    required this.opacity,
+    required this.child,
+  }) : super(key: key);
 
-  Widget _buildFilterButtons() {
-  final filters = [
-    {'label': 'All', 'filter': () => _applyFilter('All')},
-    {'label': 'Department', 'filter': () => _applyFilter('Department')},
-    {'label': 'Faculty', 'filter': () => _applyFilter('Faculty')},
-    {'label': 'Upcoming', 'filter': () => _applyFilter('Upcoming')},
-    {'label': 'Active', 'filter': () => _applyFilter('Active')},
-    {'label': 'Type', 'filter': () => _applyFilter('Type')},
-  ];
-
-  return SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      children: filters.map((filter) {
-        return Padding(
-          padding: const EdgeInsets.only(right: 8), // Spacing between buttons
-          child: ElevatedButton(
-            onPressed: filter['filter'] as VoidCallback,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              backgroundColor: const Color.fromARGB(255, 133, 154, 229),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-            ),
-            child: Text(
-              filter['label'] as String,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(30),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(opacity),
+            borderRadius: BorderRadius.circular(30),
           ),
-        );
-      }).toList(),
-    ),
-  );
-}
-
-  Widget _buildElectionCard({
-    required String title,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            colors: [
-              color.withOpacity(0.7),
-              color.withOpacity(0.9),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.4),
-              blurRadius: 16,
-              spreadRadius: 4,
-              offset: const Offset(4, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.9),
-                ),
-                child: Icon(
-                  icon,
-                  size: 48,
-                  color: color,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Flexible(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-          ],
+          child: child,
         ),
       ),
     );

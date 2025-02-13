@@ -1,3 +1,4 @@
+// main.dart
 import 'package:flutter/material.dart';
 import 'login.dart';
 import 'signup.dart';
@@ -15,22 +16,21 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      initialRoute: '/',
+      initialRoute: '/login', // Start with login instead of home
       theme: ThemeData(
-        primarySwatch: Colors.green, // Set a primary color for the theme
+        primarySwatch: Colors.green,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
       routes: {
-        '/': (context) => const HomePage(),
+        '/login': (context) => const LoginPage(), // Start with login
         '/signup': (context) => const SignUpPage(),
         '/verification': (context) => const VerificationPage(),
         '/specialization': (context) => const SpecializationPage(),
         '/home': (context) => const HomePage(),
-        '/profile': (context) => const ProfilePage(), // Added Profile route
+        '/profile': (context) => const ProfilePage(),
       },
       onUnknownRoute: (settings) {
-        return MaterialPageRoute(
-            builder: (context) => const LoginPage()); // Fallback route
+        return MaterialPageRoute(builder: (context) => const LoginPage());
       },
     );
   }
