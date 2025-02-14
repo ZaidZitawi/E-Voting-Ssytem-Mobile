@@ -5,8 +5,9 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'CommentCard.dart';
 import 'AllCommentsDialog.dart';
+import 'package:e_voting_system/constants.dart' as Constants;
 
-const BASE_URL = "http://localhost:8080";
+const BASE_URL = Constants.BASE_URL;
 
 class CommentsSection extends StatefulWidget {
   final int postId;

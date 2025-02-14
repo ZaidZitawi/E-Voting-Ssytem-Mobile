@@ -5,7 +5,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'login.dart';
 import 'dart:ui';
+import 'package:e_voting_system/constants.dart' as Constants;
 
+const BASE_URL = Constants.BASE_URL;
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
 
@@ -50,7 +52,7 @@ class _SignUpPageState extends State<SignUpPage> {
       _errorMessage = null;
     });
 
-    final url = Uri.parse("http://localhost:8080/auth/register");
+    final url = Uri.parse("$BASE_URL/auth/register");
 
     try {
       final response = await http.post(
@@ -102,7 +104,7 @@ class _SignUpPageState extends State<SignUpPage> {
       _errorMessage = null;
     });
 
-    final url = Uri.parse("http://localhost:8080/auth/verify");
+    final url = Uri.parse("$BASE_URL/auth/verify");
     try {
       final response = await http.post(
         url,
@@ -153,7 +155,7 @@ class _SignUpPageState extends State<SignUpPage> {
       _isProcessing = true;
     });
 
-    final url = Uri.parse("http://localhost:8080/faculty-and-department/faculties");
+    final url = Uri.parse("$BASE_URL/faculty-and-department/faculties");
     try {
       final response = await http.get(
         url,
@@ -190,7 +192,7 @@ class _SignUpPageState extends State<SignUpPage> {
       _selectedDepartment = null;
     });
 
-    final url = Uri.parse("http://localhost:8080/faculty-and-department/faculties/$facultyId/departments");
+    final url = Uri.parse("$BASE_URL/faculty-and-department/faculties/$facultyId/departments");
     try {
       final response = await http.get(
         url,
@@ -234,7 +236,7 @@ class _SignUpPageState extends State<SignUpPage> {
     });
 
     final url = Uri.parse(
-      "http://localhost:8080/auth/complete-registration?email=${Uri.encodeComponent(_emailController.text.trim())}"
+      "$BASE_URL/auth/complete-registration?email=${Uri.encodeComponent(_emailController.text.trim())}"
     );
 
     try {

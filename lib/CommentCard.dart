@@ -1,6 +1,8 @@
 // CommentCard.dart
 import 'package:flutter/material.dart';
+import 'package:e_voting_system/constants.dart' as Constants;
 
+const BASE_URL = Constants.BASE_URL;
 class CommentCard extends StatelessWidget {
   final Map<String, dynamic> commentData;
 
@@ -46,7 +48,7 @@ class CommentCard extends StatelessWidget {
     final createdAt = commentData["createdAt"] ?? "";
 
     final String imageUrl = userImage.isNotEmpty
-        ? "http://localhost:8080/uploads/$userImage"
+        ? "$BASE_URL/uploads/$userImage"
         : ""; // fallback if needed
 
     return Container(

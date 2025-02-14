@@ -6,6 +6,9 @@ import 'dart:convert';
 import 'dart:ui';
 import 'home.dart';
 import 'signup.dart';
+import 'package:e_voting_system/constants.dart' as Constants;
+
+const BASE_URL = Constants.BASE_URL;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -32,7 +35,7 @@ class _LoginPageState extends State<LoginPage> {
       _errorMessage = null;
     });
 
-    final Uri url = Uri.parse("http://localhost:8080/auth/login");
+    final Uri url = Uri.parse("$BASE_URL/auth/login");
 
     try {
       // 1) Send login request
@@ -114,7 +117,7 @@ class _LoginPageState extends State<LoginPage> {
   /// stores userId, facultyId, departmentId, etc. in SharedPreferences.
   Future<bool> _fetchUserProfile(String token) async {
     try {
-      final Uri profileUrl = Uri.parse("http://localhost:8080/users/profile");
+      final Uri profileUrl = Uri.parse("$BASE_URL/users/profile");
       final response = await http.get(
         profileUrl,
         headers: {"Authorization": "Bearer $token"},

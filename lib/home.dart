@@ -1,26 +1,20 @@
 // home.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:e_voting_system/constants.dart' as Constants;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:ui';
-// Example placeholders for your other pages
 import 'CalendarPage.dart';
-import 'ClubElectionsPage.dart';
 import 'NotificationsPage.dart';
 import 'ProfileUserPage.dart';
 import 'CandidatePostsPage.dart';
 import 'CustomBottomNavigationBar.dart';
 import 'CustomDrawer.dart';
-// Suppose you have an ElectionDetailPage to navigate to
 import 'ElectionDetailPage.dart';
 
-// Replace with your actual endpoints
-const BASE_URL = "http://localhost:8080";
+const BASE_URL = Constants.BASE_URL;
 
-// ------------------------------------------
-// HomePage with AppBar, Drawer, BottomNav
-// ------------------------------------------
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
 
@@ -28,15 +22,14 @@ class HomePage extends StatefulWidget {
   _HomePageState createState() => _HomePageState();
 }
 
-// The main scaffold with tab navigation
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
   static final List<Widget> _pages = <Widget>[
-    HomeContent(),         // 0: main dashboard content
-    CalendarPage(),        // 1
-    NotificationsPage(),   // 2
-    ProfilePage(),         // 3
+    HomeContent(),
+    CalendarPage(),
+    NotificationsPage(),
+    ProfilePage(),
   ];
 
   void _onItemTapped(int index) {
@@ -92,9 +85,6 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// ---------------------------------------------------
-// HomeContent: A "dashboard" that merges React ideas
-// ---------------------------------------------------
 class HomeContent extends StatefulWidget {
   HomeContent({Key? key}) : super(key: key);
 
@@ -103,24 +93,21 @@ class HomeContent extends StatefulWidget {
 }
 
 class _HomeContentState extends State<HomeContent> {
-  // For "featured" slider
   List<dynamic> _featuredElections = [];
   bool _isLoadingFeatured = false;
   String? _featuredError;
 
-  // For filtering / listing
   TextEditingController _searchController = TextEditingController();
   List<dynamic> _allElections = [];
   List<dynamic> _filteredElections = [];
   bool _isLoadingAll = false;
   String? _listError;
 
-  // Filters
   bool _upcoming = false;
   bool _active = false;
-  int? _faculty;    // null means "All"
-  int? _department; // null means "All"
-  int? _type;       // null means "All"
+  int? _faculty;
+  int? _department;
+  int? _type;
 
   List<Map<String, dynamic>> _faculties = [];
   List<Map<String, dynamic>> _departments = [];
@@ -136,9 +123,6 @@ class _HomeContentState extends State<HomeContent> {
     _fetchAllElections();
   }
 
-  // ---------------------------
-  // 1) Fetch FEATURED ELECTIONS
-  // ---------------------------
   Future<void> _fetchFeaturedElections() async {
     setState(() {
       _isLoadingFeatured = true;
@@ -175,9 +159,6 @@ class _HomeContentState extends State<HomeContent> {
     }
   }
 
-  // -----------------------------------------
-  // 2) Fetch ALL ELECTIONS, store in _allElections
-  // -----------------------------------------
   Future<void> _fetchAllElections() async {
     setState(() {
       _isLoadingAll = true;
@@ -188,10 +169,8 @@ class _HomeContentState extends State<HomeContent> {
       final String? token = await _getToken();
       if (token == null) throw Exception("No auth token found.");
 
-      // This might be the "filter" endpoint from your React code
-      // We'll pass default query params for "All"
       final response = await http.get(
-        Uri.parse("$BASE_URL/elections/filter?page=0&size=50"),
+        Uri.parse("$BASE_URL/elections/filter?page=0&size=100"),
         headers: {"Authorization": "Bearer $token"},
       );
 
@@ -201,7 +180,7 @@ class _HomeContentState extends State<HomeContent> {
         setState(() {
           _allElections = content is List ? content : [];
         });
-        _applyFilters(); // Filter them after fetching
+        _applyFilters();
       } else {
         setState(() {
           _listError = "Error: ${response.body}";
@@ -233,7 +212,7 @@ class _HomeContentState extends State<HomeContent> {
     return;
   }
 
-  final Uri url = Uri.parse("http://localhost:8080/faculty-and-department/faculties");
+  final Uri url = Uri.parse("$BASE_URL/faculty-and-department/faculties");
 
   try {
     final response = await http.get(
@@ -243,7 +222,6 @@ class _HomeContentState extends State<HomeContent> {
 
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
-      // Convert each faculty item to { "id": ..., "name": ... }
       setState(() {
         _faculties = data.map((f) {
           return {
@@ -284,7 +262,7 @@ class _HomeContentState extends State<HomeContent> {
     return;
   }
 
-  final Uri url = Uri.parse("http://localhost:8080/faculty-and-department/faculties/$facultyId/departments");
+  final Uri url = Uri.parse("$BASE_URL/faculty-and-department/faculties/$facultyId/departments");
 
   try {
     final response = await http.get(
@@ -294,7 +272,6 @@ class _HomeContentState extends State<HomeContent> {
 
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
-      // Convert each department item to { "id": ..., "name": ... }
       setState(() {
         _departments = data.map((d) {
           return {
@@ -319,20 +296,12 @@ class _HomeContentState extends State<HomeContent> {
   }
 }
 
-
-  // -------------------------------------
-  // HELPER: Retrieve token from local storage
-  // -------------------------------------
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString("authToken");
   }
 
-  // --------------------
-  // SEARCH + FILTER LOGIC
-  // --------------------
   void _onSearchChanged(String query) {
-    // Called when user types in the search box
     _applyFilters();
   }
 
@@ -340,11 +309,9 @@ class _HomeContentState extends State<HomeContent> {
   final query = _searchController.text.trim().toLowerCase();
 
   List<dynamic> filtered = _allElections.where((e) {
-    // 1) Text search
     final title = (e["title"] ?? "").toString().toLowerCase();
     final matchesSearch = query.isEmpty || title.contains(query);
 
-    // 2) Calculate if election is upcoming by checking startDatetime > DateTime.now()
     bool isUpcomingLocal = false;
     if (e["startDatetime"] != null) {
       try {
@@ -353,28 +320,23 @@ class _HomeContentState extends State<HomeContent> {
           isUpcomingLocal = true;
         }
       } catch (_) {
-        // If parsing fails, treat as not upcoming
         isUpcomingLocal = false;
       }
     }
 
-    // 3) Active check from server (if "isActive" is a boolean in JSON)
     final bool isActive = e["isActive"] == true;
 
-    // 4) Combine user’s filter toggles with the local checks
     final bool matchesUpcoming = !_upcoming || isUpcomingLocal;
     final bool matchesActive = !_active || isActive;
 
-    // 5) Faculty / department / type checks
     final facultyId = e["faculty"] != null ? e["faculty"]["facultyId"] : null;
     final departmentId = e["department"] != null ? e["department"]["departmentId"] : null;
-    final electionType = e["type"]; // int or null
+    final electionType = e["type"];
 
     final bool matchesFaculty = _faculty == null || _faculty == facultyId;
     final bool matchesDept = _department == null || _department == departmentId;
     final bool matchesType = _type == null || _type == electionType;
 
-    // 6) Return true if all filters pass
     return matchesSearch
         && matchesUpcoming
         && matchesActive
@@ -389,7 +351,6 @@ class _HomeContentState extends State<HomeContent> {
 }
 
 
-  // Clear all filters
   void _clearFilters() {
     setState(() {
       _searchController.text = "";
@@ -407,17 +368,14 @@ class _HomeContentState extends State<HomeContent> {
     return Scaffold(
       body: CustomScrollView(
         slivers: <Widget>[
-          // Sliver for top padding
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: <Widget>[
-                  // 1) Featured Elections (like ElectionSlider)
                   _buildFeaturedSection(),
 
                   const SizedBox(height: 12),
-                  // 2) Search + Filter Bar
                   _buildSearchBox(),
                   const SizedBox(height: 12),
                   _buildFilterButtons(),
@@ -426,7 +384,6 @@ class _HomeContentState extends State<HomeContent> {
             ),
           ),
 
-          // 3) Election Grid or List
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -439,9 +396,6 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  // ------------------------------------
-  // WIDGET: Featured Elections Carousel
-  // ------------------------------------
   Widget _buildFeaturedSection() {
     if (_isLoadingFeatured) {
       return const Center(child: CircularProgressIndicator());
@@ -452,7 +406,6 @@ class _HomeContentState extends State<HomeContent> {
     if (_featuredElections.isEmpty) {
       return const Text("No featured elections available at the moment.");
     }
-    // Example horizontal ListView as a simple "carousel"
     return SizedBox(
       height: 180,
       child: ListView.builder(
@@ -479,7 +432,6 @@ class _HomeContentState extends State<HomeContent> {
               ),
               child: Column(
                 children: <Widget>[
-                  // If there's an image
                   election["imageUrl"] != null
                       ? ClipRRect(
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
@@ -514,9 +466,6 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  // ------------------------------------
-  // WIDGET: Search Box
-  // ------------------------------------
   Widget _buildSearchBox() {
     return TextField(
       controller: _searchController,
@@ -535,12 +484,9 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  // ------------------------------------
-  // WIDGET: Filter Buttons (like React)
-  // ------------------------------------
+
   Widget _buildFilterButtons() {
-    // For demonstration, we only show "All", "Upcoming", "Active"
-    // You might replace or expand with faculty/department pickers, etc.
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -551,7 +497,6 @@ class _HomeContentState extends State<HomeContent> {
             setState(() {
               _upcoming = true;
               _active = false;
-              // You could also set type/faculty/department if needed
             });
             _applyFilters();
           }),
@@ -564,7 +509,6 @@ class _HomeContentState extends State<HomeContent> {
             _applyFilters();
           }),
           const SizedBox(width: 8),
-          // Possibly a button to pick "Faculty" or "Department" in a dialog
           _buildFilterButton("Pick Faculty/Dept", onPressed: _showFacultyDeptDialog),
         ],
       ),
@@ -586,16 +530,13 @@ class _HomeContentState extends State<HomeContent> {
   }
 
  Future<void> _showFacultyDeptDialog() async {
-  // If faculties haven’t been fetched yet, do it:
   if (_faculties.isEmpty) {
-    await _fetchFaculties(); // existing method in your code
+    await _fetchFaculties();
   }
 
-  // Start with the current selected faculty/department (if any)
   String? localFaculty = _faculty != null ? _faculty.toString() : null;
   String? localDepartment = _department != null ? _department.toString() : null;
 
-  // Show a dialog with a StatefulBuilder, so UI updates when user picks new faculty
   await showDialog(
     context: context,
     builder: (BuildContext ctx) {
@@ -606,33 +547,26 @@ class _HomeContentState extends State<HomeContent> {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 1) Faculty Dropdown
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: "Faculty"),
                   value: localFaculty,
                   items: _faculties.map((f) {
-                    // Each faculty item looks like { "id": 1, "name": "Engineering" }
                     return DropdownMenuItem<String>(
                       value: f["id"].toString(),
                       child: Text(f["name"]),
                     );
                   }).toList(),
                   onChanged: (value) async {
-                    // When user picks a new faculty:
                     setDialogState(() {
                       localFaculty = value;
-                      // Reset department selection
                       localDepartment = null;
-                      _departments.clear(); // Clear current departments
+                      _departments.clear();
                     });
 
                     if (value != null) {
-                      // Convert to int
                       final facultyId = int.tryParse(value);
                       if (facultyId != null) {
-                        // Fetch new departments for this faculty
                         await _fetchDepartments(facultyId);
-                        // Force rebuild to show the newly fetched departments
                         setDialogState(() {});
                       }
                     }
@@ -640,12 +574,10 @@ class _HomeContentState extends State<HomeContent> {
                 ),
                 const SizedBox(height: 16),
 
-                // 2) Department Dropdown
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: "Department"),
                   value: localDepartment,
                   items: _departments.map((d) {
-                    // Each department item looks like { "id": 10, "name": "Computer Science" }
                     return DropdownMenuItem<String>(
                       value: d["id"].toString(),
                       child: Text(d["name"]),
@@ -662,20 +594,17 @@ class _HomeContentState extends State<HomeContent> {
             actions: [
               TextButton(
                 onPressed: () {
-                  // Cancel: do nothing, just close
                   Navigator.pop(context);
                 },
                 child: const Text("Cancel"),
               ),
               TextButton(
                 onPressed: () {
-                  // Convert local selections to int
                   setState(() {
                     _faculty = localFaculty != null ? int.tryParse(localFaculty!) : null;
                     _department = localDepartment != null ? int.tryParse(localDepartment!) : null;
                   });
 
-                  // Re-apply filters or refresh your list
                   _applyFilters();
 
                   Navigator.pop(context);
@@ -690,10 +619,6 @@ class _HomeContentState extends State<HomeContent> {
   );
 }
 
-
-  // ------------------------------------
-  // WIDGET: The main election list
-  // ------------------------------------
   Widget _buildElectionList() {
     if (_isLoadingAll) {
       return const Center(child: CircularProgressIndicator());
@@ -740,7 +665,6 @@ class _HomeContentState extends State<HomeContent> {
                 subtitle: Text(election["description"] ?? "No description."),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
-                  // Navigate to detail page
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -759,9 +683,6 @@ class _HomeContentState extends State<HomeContent> {
   }
 }
 
-// ----------------------------------------------------
-// GlassContainer: same as your original design
-// ----------------------------------------------------
 class GlassContainer extends StatelessWidget {
   final double blur;
   final double opacity;

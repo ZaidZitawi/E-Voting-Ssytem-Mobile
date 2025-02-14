@@ -6,9 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
+import 'package:e_voting_system/constants.dart' as Constants;
 
-/// Replace with your actual endpoints
-const BASE_URL = "http://localhost:8080";
+const BASE_URL = Constants.BASE_URL;
 
 /// A placeholder default image if election imageUrl is null
 const DEFAULT_ELECTION_IMAGE = "https://via.placeholder.com/600x300";
@@ -1004,7 +1004,7 @@ class _PostWidgetState extends State<PostWidget> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Image.network(
-                      "http://localhost:8080/uploads/$candidateImage",
+                      "$BASE_URL/uploads/$candidateImage",
                       width: 40,
                       height: 40,
                       fit: BoxFit.cover,
