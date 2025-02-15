@@ -1,3 +1,4 @@
+// CustomBottomNavigationBar.dart
 import 'package:flutter/material.dart';
 
 class CustomBottomNavigationBar extends StatelessWidget {
@@ -26,6 +27,10 @@ class CustomBottomNavigationBar extends StatelessWidget {
         BottomNavigationBarItem(
           icon: Icon(Icons.calendar_today),
           label: 'Calendar',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.south_america),
+          label: 'Social',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.notifications),

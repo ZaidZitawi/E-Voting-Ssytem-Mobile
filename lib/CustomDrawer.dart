@@ -1,3 +1,4 @@
+// CustomDrawer.dart
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -58,11 +59,19 @@ class CustomDrawer extends StatelessWidget {
             },
           ),
           ListTile(
+            leading: const Icon(Icons.south_america_outlined, color: Color(0xFF347928)),
+            title: const Text('Social'),
+            onTap: () {
+              Navigator.pop(context);
+              onItemTapped(2);
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.notifications, color: Color(0xFF347928)),
             title: const Text('Notifications'),
             onTap: () {
               Navigator.pop(context);
-              onItemTapped(2);
+              onItemTapped(3);
             },
           ),
           ListTile(
@@ -70,7 +79,7 @@ class CustomDrawer extends StatelessWidget {
             title: const Text('Profile'),
             onTap: () {
               Navigator.pop(context);
-              onItemTapped(3);
+              onItemTapped(4);
             },
           ),
           ListTile(

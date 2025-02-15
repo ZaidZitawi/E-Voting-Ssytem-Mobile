@@ -1,4 +1,6 @@
 // home.dart
+import 'package:e_voting_system/BlockchainVerificationWidget.dart';
+import 'package:e_voting_system/SocialPage.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:e_voting_system/constants.dart' as Constants;
@@ -28,6 +30,7 @@ class _HomePageState extends State<HomePage> {
   static final List<Widget> _pages = <Widget>[
     HomeContent(),
     CalendarPage(),
+    SocialPage(),
     NotificationsPage(),
     ProfilePage(),
   ];
@@ -374,11 +377,17 @@ class _HomeContentState extends State<HomeContent> {
               child: Column(
                 children: <Widget>[
                   _buildFeaturedSection(),
-
+                  const SizedBox(height: 16,),
+                  ElevatedButton(
+                    onPressed: _openVerificationDialog,
+                    child: const Text("Verify Transaction"),
+                  ),
                   const SizedBox(height: 12),
                   _buildSearchBox(),
                   const SizedBox(height: 12),
                   _buildFilterButtons(),
+
+                  
                 ],
               ),
             ),
@@ -393,6 +402,22 @@ class _HomeContentState extends State<HomeContent> {
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
       ),
+    );
+  }
+
+  void _openVerificationDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Container(
+            width: 600, // If you want a certain width
+            height: 500,
+            padding: const EdgeInsets.all(16),
+            child: const BlockchainVerificationWidget(),
+          ),
+        );
+      },
     );
   }
 
